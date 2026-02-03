@@ -1,2 +1,4 @@
 hmmer
 libgl1
+libfreesasa-dev
+build-essential
