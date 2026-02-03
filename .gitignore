@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+.streamlit/
+*.json
+.DS_Store
+
+# 基本は無視
+*.cif
+*.pdb
+
+# dataフォルダの中身だけは特別に許可
+!data/*.cif
+!data/*.pdb

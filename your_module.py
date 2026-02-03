@@ -1,7 +1,7 @@
+from Bio.PDB.SASA import ShrakeRupley
 import json
 import os
 import pandas as pd
-import freesasa
 from rdkit import Chem
 from Bio.PDB import MMCIFParser, PDBParser, NeighborSearch
 from Bio.SeqUtils import seq1
@@ -70,12 +70,22 @@ class GlycoConjugateWorkflow:
         return contacts
 
     def _calculate_sasa(self, cif_path):
-        """FreeSASAを用いて糖鎖の露出面積を計算"""
-        structure = freesasa.Structure(cif_path)
-        result = freesasa.calc(structure)
-        s_glyc = freesasa.selectObjects(["glyc, not chain A"], structure, result)
-        return {"glycan_sasa": s_glyc["glyc"]}
-
+        """BiopythonのShrakeRupleyアルゴリズムを用いてSASAを計算 (Cloud対応版)"""
+        parser = MMCIFParser(QUIET=True)
+        struct = parser.get_structure("model", cif_path)[0]
+        
+        # SASA計算の実行
+        sr = ShrakeRupley()
+        sr.compute(struct, level="R") # 残基レベルで計算
+        
+        # 糖鎖（A鎖以外）のSASAを合計
+        glycan_sasa = 0.0
+        for chain in struct:
+            if chain.id != 'A': # 抗原（A鎖）以外を糖鎖とみなす
+                for residue in chain:
+                    glycan_sasa += getattr(residue, 'sasa', 0.0)
+        
+        return {"glycan_sasa": glycan_sasa}
 
 class AntibodyDockingWorkflow:
     """抗体－抗原ドッキングとパラトープ解析を担当するクラス"""
