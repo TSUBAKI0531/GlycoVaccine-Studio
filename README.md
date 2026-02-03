@@ -1,4 +1,5 @@
-GlycoVaccine Studio
+#GlycoVaccine Studio#
+
 糖鎖抱合ワクチン設計・抗体相互作用解析の統合プラットフォーム
 GlycoVaccine Studio は、腫瘍関連糖鎖（TACA）などを用いた次世代ワクチンの設計と、抗体との相互作用解析を支援するためのオールインワン・ツールです。AlphaFold 3 (AF3) による予測構造を軸に、バイオインフォマティクス的な定量的評価を提供します。
 
