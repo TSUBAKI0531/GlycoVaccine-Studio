@@ -3,3 +3,4 @@ pandas
 biopython
 rdkit
 py3Dmol
+xlsxwriter

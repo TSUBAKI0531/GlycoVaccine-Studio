@@ -2,19 +2,21 @@ import streamlit as st
 import pandas as pd
 import io
 import os
-import streamlit.components.v1 as components  # 追加：HTML/JS表示用
+from io import BytesIO
+import streamlit.components.v1 as components
 from your_module import (
     GlycoConjugateWorkflow, 
     AntibodyDockingWorkflow, 
     LightweightHotSpotAnalyzer
 )
 
-# --- 3D可視化用の補助関数 (修正ポイント) ---
+# --- 履歴保持の初期化 (Session State) ---
+if 'analysis_history' not in st.session_state:
+    st.session_state.analysis_history = []
+
+# --- 3D可視化用の補助関数 ---
 def show_3d_model(cif_text):
-    """3Dmol.orgのJavaScriptライブラリを使用して構造を表示する"""
-    # cif_text内のバッククォート(`)をエスケープしてJSエラーを防ぐ
     safe_cif = cif_text.replace("`", "\\`").replace("$", "\\$")
-    
     html_code = f"""
     <div id="container" style="height: 500px; width: 100%; position: relative;"></div>
     <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
@@ -23,8 +25,8 @@ def show_3d_model(cif_text):
             let viewer = $3Dmol.createViewer($("#container"), {{backgroundColor: "white"}});
             let data = `{safe_cif}`;
             viewer.addModel(data, "mcif");
-            viewer.setStyle({{cartoon: {{color: 'spectrum'}}}}); // タンパク質を漫画表現
-            viewer.setStyle({{hetflag: true}}, {{stick: {{colorscheme: 'magentaCarbon', radius: 0.3}}}}); // 糖鎖を棒表現
+            viewer.setStyle({{cartoon: {{color: 'spectrum'}}}});
+            viewer.setStyle({{hetflag: true}}, {{stick: {{colorscheme: 'magentaCarbon', radius: 0.3}}}});
             viewer.zoomTo();
             viewer.render();
         }});
@@ -42,9 +44,12 @@ with st.sidebar:
     h_chain_global = st.text_input("Antibody Heavy Chain ID", "H")
     l_chain_global = st.text_input("Antibody Light Chain ID", "L")
 
-tab1, tab2, tab3, tab4 = st.tabs(["🧬 抗原デザイン", "📊 モデル解析", "🛡️ 抗体ドッキング解析", "🔥 Hot Spot解析"])
+# タブに「履歴＆出力」を追加
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "🧬 抗原デザイン", "📊 モデル解析", "🛡️ 抗体ドッキング解析", "🔥 Hot Spot解析", "📋 履歴＆出力"
+])
 
-# --- Tab 1: 抗原デザイン ---
+# --- Tab 1: 抗原デザイン (変更なし) ---
 with tab1:
     st.header("🧬 Antigen Design")
     col1, col2 = st.columns(2)
@@ -74,17 +79,24 @@ with tab2:
         for file in uploaded_models:
             content = file.read().decode("utf-8")
             with open(file.name, "w") as f: f.write(content)
-            
             sasa = wf._calculate_sasa(file.name)
             contacts = wf.analyze_interactions(file.name)
             score = sasa["glycan_sasa"] / (len(contacts) + 1)
             results.append({"Model": file.name, "Exposure_Score": score, "Content": content})
         
-        df = pd.DataFrame(results).sort_values("Exposure_Score", ascending=False)
-        st.dataframe(df[["Model", "Exposure_Score"]])
+        df_eval = pd.DataFrame(results).sort_values("Exposure_Score", ascending=False)
+        st.dataframe(df_eval[["Model", "Exposure_Score"]])
         
+        if st.button("結果を履歴に追加", key="save_eval"):
+            for _, row in df_eval.iterrows():
+                st.session_state.analysis_history.append({
+                    "Job": job_name, "Type": "Model Evaluation", 
+                    "Target": row["Model"], "Score": row["Exposure_Score"]
+                })
+            st.toast("履歴に保存しました！")
+
         if st.checkbox("Show Best Model 3D View"):
-            show_3d_model(df.iloc[0]["Content"])
+            show_3d_model(df_eval.iloc[0]["Content"])
 
 # --- Tab 3: 抗体解析 ---
 with tab3:
@@ -96,8 +108,14 @@ with tab3:
         
         if st.button("Analyze Paratope"):
             adw = AntibodyDockingWorkflow(job_name, h_chain=h_chain_global, l_chain=l_chain_global)
-            df = adw.analyze_paratope("temp.cif")
-            st.dataframe(df)
+            df_para = adw.analyze_paratope("temp.cif")
+            st.dataframe(df_para)
+            
+            # 履歴に追加
+            st.session_state.analysis_history.append({
+                "Job": job_name, "Type": "Paratope Analysis", 
+                "Target": complex_file.name, "Score": len(df_para) # 接触残基数をスコアとして記録
+            })
             show_3d_model(content)
 
 # --- Tab 4: Hot Spot解析 ---
@@ -110,3 +128,40 @@ with tab4:
             res = analyzer.run_contact_density_scan()
             st.dataframe(res.head(10))
             st.bar_chart(res.set_index("Residue")["HotSpot_Score"])
+            
+            # 履歴に追加
+            top_res = res.iloc[0]
+            st.session_state.analysis_history.append({
+                "Job": job_name, "Type": "Hot Spot", 
+                "Target": hs_file.name, "Score": top_res["HotSpot_Score"]
+            })
+
+# --- Tab 5: 履歴＆出力 (新設) ---
+with tab5:
+    st.header("📋 Analysis History & Export")
+    
+    if st.session_state.analysis_history:
+        df_history = pd.DataFrame(st.session_state.analysis_history)
+        st.dataframe(df_history, use_container_width=True)
+        
+        col1, col2, col3 = st.columns(3)
+        
+        # CSV出力
+        with col1:
+            csv = df_history.to_csv(index=False).encode('utf-8')
+            st.download_button("Download CSV", csv, "history.csv", "text/csv")
+            
+        # Excel出力
+        with col2:
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                df_history.to_excel(writer, index=False, sheet_name='Summary')
+            st.download_button("Download Excel", output.getvalue(), "history.xlsx")
+            
+        # 履歴削除
+        with col3:
+            if st.button("履歴をリセット", color="primary"):
+                st.session_state.analysis_history = []
+                st.rerun()
+    else:
+        st.info("解析履歴はまだありません。各タブで解析を実行してください。")
