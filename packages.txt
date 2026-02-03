@@ -1,4 +1,3 @@
 hmmer
 libgl1
-libfreesasa-dev
-build-essential
+libxml2-dev
