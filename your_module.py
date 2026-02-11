@@ -1,54 +1,48 @@
 import numpy as np
+import pandas as pd
 
 class ComplexBuilder:
-    """CueMol2 で Ribbon 表示が可能な PDB を生成する"""
-    
-    def _generate_proper_coords(self, sequence, chain_id="A"):
-        """
-        CueMol2 の SplineRenderer が認識可能な連続した座標を生成する。
-        N -> CA -> C の順に Z 軸方向に進むように配置します。
-        """
+    """Tab 1: アプリ内 3D 表示用のヘリックス構造生成"""
+    def _generate_coords(self, sequence, offset_z=0.0):
         lines = []
         atom_idx = 1
-        
-        # 螺旋のパラメータ (曲率を与えて Ribbon 演算を可能にする)
-        radius = 2.0
-        pitch = 3.0   # 残基ごとの上昇量 (CA-CA距離に近似)
-        theta_step = 60 * (np.pi / 180) # 60度ずつ回転
+        radius, pitch = 2.3, 1.5
+        theta_step = 100 * (np.pi / 180)
 
         for i, aa in enumerate(sequence):
-            res_idx = i + 1
             theta = i * theta_step
-            
-            # 基準となる CA 座標
-            z_ca = i * pitch
-            x_ca = radius * np.cos(theta)
-            y_ca = radius * np.sin(theta)
-            
-            # 主鎖原子の相対配置 (N, CA, C, O) 
-            # 鎖が Z 軸方向に一方向に進むように Z オフセットを調整
+            ca_x, ca_y, ca_z = radius * np.cos(theta), radius * np.sin(theta), offset_z + (i * pitch)
             atoms = [
-                ("N ", x_ca - 0.4, y_ca + 1.0, z_ca - 1.2, "N"),
-                ("CA", x_ca,       y_ca,       z_ca,       "C"),
-                ("C ", x_ca + 0.4, y_ca - 1.0, z_ca + 1.2, "C"),
-                ("O ", x_ca + 1.4, y_ca - 1.4, z_ca + 1.2, "O")
+                (" N  ", ca_x - 0.5, ca_y + 1.2, ca_z - 1.0, "N"),
+                (" CA ", ca_x,       ca_y,       ca_z,       "C"),
+                (" C  ", ca_x + 0.5, ca_y - 1.2, ca_z + 1.0, "C"),
+                (" O  ", ca_x + 1.5, ca_y - 1.5, ca_z + 1.0, "O")
             ]
-            
             for name, x, y, z, elem in atoms:
-                # PDB ATOM レコードの厳格なカラムフォーマット
-                line = f"ATOM  {atom_idx:>5}  {name}  ALA {chain_id}{res_idx:>4}    {x:>8.3f}{y:>8.3f}{z:>8.3f}  1.00  0.00           {elem}"
-                lines.append(line)
+                lines.append(f"ATOM  {atom_idx:>5} {name} ALA A{i+1:>4}    {x:>8.3f}{y:>8.3f}{z:>8.3f}  1.00  0.00           {elem}")
                 atom_idx += 1
         return "\n".join(lines) + "\nTER"
 
-    def build_complex_pdb(self, protein_seq, linker_smi, glycan_smi):
-        """統合 PDB 生成"""
-        protein_seq = protein_seq.strip().upper()
-        header = [
-            "REMARK   Built by GlycoVaccine Studio v3.2",
-            f"REMARK   Carrier: {protein_seq[:20]}...",
-            f"REMARK   Linker: {linker_smi}",
-            f"REMARK   Glycan: {glycan_smi}"
-        ]
-        pdb_body = self._generate_proper_coords(protein_seq)
-        return "\n".join(header) + "\n" + pdb_body + "\nEND"
+    def build_pdb(self, seq, l_smi, g_smi):
+        header = f"REMARK   Antigen-Glycan Complex\nREMARK   SMILES: {l_smi}.{g_smi}"
+        return header + "\n" + self._generate_coords(seq) + "\nEND"
+
+class AntibodyGraftingEngine:
+    """Tab 2: トラスツズマブのフレームワークへの CDR 移植"""
+    def __init__(self):
+        # トラスツズマブ (Herceptin) の FR 配列
+        self.H_FR = {"F1":"EVQLVESGGGLVQPGGSLRLSCAAS", "F2":"WVRQAPGKGLEWVA", "F3":"RFTISADTSKNTAYLQMNSLRAEDTAVYYC", "F4":"WGQGTLVTVSS"}
+        self.L_FR = {"F1":"DIQMTQSPSSLSASVGDRVTITC", "F2":"WYQQKPGKAPKLLIY", "F3":"GVPSRFSGSGSGTDFTLTISSLQPEDFATYYC", "F4":"FGQGTKVEIK"}
+
+    def predict_cdrs(self, glycan_smi):
+        """標的糖鎖に対する CDR 配列の予測ロジック (デモ用)"""
+        # Tn抗原 等に基づいた配列を返す
+        h_cdrs = ["GFTFSRYT", "ISSSGGST", "ARTVRYGMDV"]
+        l_cdrs = ["QSVSSY", "DAS", "QQRSSWPFT"]
+        return h_cdrs, l_cdrs
+
+    def graft(self, h_cdrs, l_cdrs):
+        """予測 CDR を移植して完全な重鎖・軽鎖を生成"""
+        h = f"{self.H_FR['F1']}{h_cdrs[0]}{self.H_FR['F2']}{h_cdrs[1]}{self.H_FR['F3']}{h_cdrs[2]}{self.H_FR['F4']}"
+        l = f"{self.L_FR['F1']}{l_cdrs[0]}{self.L_FR['F2']}{l_cdrs[1]}{self.L_FR['F3']}{l_cdrs[2]}{self.L_FR['F4']}"
+        return h, l
