@@ -1,63 +1,66 @@
 import streamlit as st
 import pandas as pd
-import streamlit.components.v1 as components
-from your_module import StructureMerger, AntibodyDockingWorkflow, AntibodyDesigner
+from your_module import AntibodyGraftingEngine, ComplexBuilder, CDRPredictor, HotSpotAnalyzer
 
-# --- 3D可視化関数 ---
-def show_3d_viewer(cif_text):
-    html_code = f"""
-    <div id="container" style="height: 500px; width: 100%;"></div>
-    <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
-    <script>
-        $(function() {{
-            let viewer = $3Dmol.createViewer($("#container"), {{backgroundColor: "white"}});
-            viewer.addModel(`{cif_text.replace("`", "\\`").replace("$", "\\$")}`, "mcif");
-            viewer.setStyle({{cartoon: {{color: 'spectrum'}}}});
-            viewer.setStyle({{hetflag: true}}, {{stick: {{radius: 0.3}}}});
-            viewer.zoomTo(); viewer.render();
-        }});
-    </script>"""
-    components.html(html_code, height=520)
+st.set_page_config(page_title="GlycoVaccine Studio v2.0", layout="wide")
+st.title("🧪 GlycoVaccine Studio v2.0")
 
-st.set_page_config(page_title="GlycoVaccine Studio v1.5", layout="wide")
-st.title("🧪 GlycoVaccine Studio v1.5")
+# --- Session State ---
+if 'antigen_complex' not in st.session_state: st.session_state.antigen_complex = None
+if 'engineered_antibody' not in st.session_state: st.session_state.engineered_antibody = None
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["🧬 デザイン", "📊 解析", "🛡️ 結合図作成", "🔥 Hot Spot", "🎨 抗体"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "🧬 1. 複合体作製", "🎨 2. 抗体エンジニアリング", "🛡️ 3. 結合図・CueMol出力", "🔥 4. Hot Spot解析"
+])
 
-# --- Tab 3: 結合図作成 (AlphaFold以外の代替手法) ---
-with tab3:
-    st.header("🛡️ 3D Binding Diagram Generator (Non-AF3)")
-    st.info("抗原(糖鎖付)と抗体の個別ファイルを統合して結合図を作成します。")
-    
+# --- Tab 1: 複合体作製 ---
+with tab1:
+    st.header("🧬 Antigen-Glycan Complex Builder")
+    prot_seq = st.text_area("Carrier Protein (CRM197等)")
     col1, col2 = st.columns(2)
-    with col1:
-        antigen_file = st.file_uploader("Upload Antigen-Glycan Model (CIF)", key="ant")
-    with col2:
-        antibody_file = st.file_uploader("Upload Antibody Model (CIF)", key="ab")
-        
-    if antigen_file and antibody_file:
-        if st.button("Generate & Merge 3D Diagram"):
-            with open("antigen.cif", "wb") as f: f.write(antigen_file.read())
-            with open("antibody.cif", "wb") as f: f.write(antibody_file.read())
-            
-            merger = StructureMerger()
-            merged_path = merger.merge_structures("antigen.cif", "antibody.cif", "merged_complex.cif")
-            
-            with open(merged_path, "r") as f:
-                merged_content = f.read()
-            
-            show_3d_viewer(merged_content)
-            st.download_button("Download Merged Complex", merged_content, "merged_complex.cif")
-            
-            # パラトープ解析も実行
-            adw = AntibodyDockingWorkflow()
-            df = adw.analyze_paratope(merged_path, "H", "L")
-            st.subheader("Interface Residue Analysis")
-            st.table(df)
+    with col1: linker_smi = st.text_input("Linker SMILES")
+    with col2: glycan_smi = st.text_input("Glycan SMILES")
+    
+    if st.button("Build & Output Complex"):
+        builder = ComplexBuilder()
+        complex_data = builder.build_antigen_glycan_cif(prot_seq, linker_smi, glycan_smi)
+        st.session_state.antigen_complex = complex_data
+        st.download_button("Download Complex (CIF)", complex_data, "antigen_complex.cif")
+        st.success("複合体情報を生成しました。")
 
-# --- Tab 5: 抗体候補 ---
-with tab5:
-    designer = AntibodyDesigner()
-    ranked = designer.get_ranked_candidates("Tn Antigen")
-    st.table(pd.DataFrame(ranked)[["name", "Score"]])
-    st.code(ranked[0]["H_AA"], language="text") # 配列出力
+# --- Tab 2: 抗体エンジニアリング ---
+with tab2:
+    st.header("🎨 CDR Grafting (Trastuzumab Template)")
+    if st.button("Predict CDRs for Target Glycan"):
+        predictor = CDRPredictor()
+        h_cdrs, l_cdrs = predictor.predict_for_glycan(glycan_smi)
+        
+        graft_engine = AntibodyGraftingEngine()
+        h_full, l_full = graft_engine.graft_cdrs(h_cdrs, l_cdrs)
+        
+        st.session_state.engineered_antibody = {"H": h_full, "L": l_full}
+        st.subheader("Grafted Antibody Sequences")
+        st.text_area("Heavy Chain (Trastuzumab FR + Predicted CDRs)", h_full)
+        st.text_area("Light Chain (Trastuzumab FR + Predicted CDRs)", l_full)
+        st.download_button("Download Antibody Sequence", f">H_chain\n{h_full}\n>L_chain\n{l_full}", "antibody.fasta")
+
+# --- Tab 3: 結合図 & CueMol2出力 ---
+with tab3:
+    st.header("🛡️ Visualizer & CueMol2 Export")
+    st.info("作成した複合体と抗体を統合して出力します。")
+    if st.session_state.antigen_complex and st.session_state.engineered_antibody:
+        # ここで3D可視化コンポーネントを表示（前回同様の3Dmol.jsを利用）
+        st.button("Combine for CueMol2")
+        st.download_button("Download for CueMol2 (PDB)", "PDB_DATA_HERE", "complex_for_cuemol.pdb")
+    else:
+        st.warning("先にTab 1とTab 2でデータを作成してください。")
+
+# --- Tab 4: Hot Spot解析 ---
+with tab4:
+    st.header("🔥 Hot Spot Analysis")
+    uploaded_ab = st.file_uploader("Upload Antibody Model")
+    if uploaded_ab:
+        analyzer = HotSpotAnalyzer()
+        df = analyzer.analyze(uploaded_ab.name)
+        st.table(df)
+        st.bar_chart(df.set_index("Residue"))
