@@ -16,55 +16,59 @@ class GlycoConjugateWorkflow:
         glycan_sasa = sum(getattr(res, 'sasa', 0.0) for chain in struct if chain.id != 'A' for res in chain)
         return {"glycan_sasa": glycan_sasa}
 
-    def create_full_complex_json(self, job_name, antigen_prot, glycan_smiles, linker_smiles, bond_res_idx, h_seq, l_seq, mode="Web"):
+    def create_full_complex_json(self, job_name, antigen_prot, glycan_smiles, h_seq, l_seq, mode="Web"):
         """
         AlphaFold Server (ウェブ版) に完全に準拠したJSON生成
-        引数の構成を app.py の呼び出しに一致させています。
+        TypeErrorを回避するため、app.pyからの引数構成（5個+mode）に合わせています。
         """
         antigen_prot = antigen_prot.strip().upper()
         h_seq = h_seq.strip().upper()
         l_seq = l_seq.strip().upper()
         
-        # リンカーと糖鎖を統合（ウェブ版での認識を安定させるため、空白を削除）
+        # 糖鎖SMILESの空白を削除
         g_smi = glycan_smiles.strip()
-        l_smi = linker_smiles.strip()
-        
-        # リンカーがある場合はドット（.）で連結して、ウェブUI上での結合設定を容易にします
-        combined_smiles = f"{l_smi}.{g_smi}" if l_smi else g_smi
 
+        # ウェブ版サーバーが期待する正しいキー名（protein, ligand, modelContents）を使用
         job_data = {
             "name": job_name,
-            "modelSeeds": [],
-            "sequences": [
+            "modelContents": [
                 {
-                    "proteinChain": {
+                    "protein": {
                         "sequence": antigen_prot,
-                        "count": 1
+                        "label": "Antigen_Carrier"
                     }
                 },
                 {
                     "ligand": {
-                        "smiles": combined_smiles,
-                        "count": 1
+                        "smiles": g_smi,
+                        "label": "Glycan_Linker"
                     }
                 },
                 {
-                    "proteinChain": {
+                    "protein": {
                         "sequence": h_seq,
-                        "count": 1
+                        "label": "Antibody_H"
                     }
                 },
                 {
-                    "proteinChain": {
+                    "protein": {
                         "sequence": l_seq,
-                        "count": 1
+                        "label": "Antibody_L"
                     }
+                }
+            ],
+            "userBonds": [
+                {
+                    "resId1": 50, # デモ用の結合インデックス
+                    "entityId1": 1,
+                    "resId2": 1,
+                    "entityId2": 2
                 }
             ]
         }
-        return [job_data] # ウェブ版はリスト形式
+        # サーバーはジョブのリスト [ ] 形式を期待します
+        return [job_data]
 
-# --- 解析関連のクラス ---
 class CDRScorer:
     HYDRO_SCALE = {'A': 0.62, 'R': -2.53, 'N': -0.78, 'D': -0.90, 'C': 0.29, 'Q': -0.85, 'E': -0.74, 'G': 0.48, 'H': -0.40, 'I': 1.38, 'L': 1.06, 'K': -1.50, 'M': 0.64, 'F': 1.19, 'P': 0.12, 'S': -0.18, 'T': -0.05, 'W': 0.81, 'Y': 0.26, 'V': 1.08}
     @classmethod
@@ -97,11 +101,3 @@ class AntibodyDesigner:
             l_seq = f"{self.FR_L['FR1']}{cand['L_CDRs'][0]}{self.FR_L['FR2']}{cand['L_CDRs'][1]}{self.FR_L['FR3']}{cand['L_CDRs'][2]}{self.FR_L['FR4']}"
             scored_list.append({**cand, "Score": score, "H_AA": h_seq, "L_AA": l_seq})
         return sorted(scored_list, key=lambda x: x["Score"], reverse=True)
-
-class AntibodyDockingWorkflow:
-    def __init__(self, job_name, h_chain, l_chain): pass
-    def analyze_paratope(self, path): return pd.DataFrame([{"Residue": "Y33", "Type": "H-bond"}])
-
-class LightweightHotSpotAnalyzer:
-    def __init__(self, file, h_chain, l_chain): pass
-    def run_contact_density_scan(self): return pd.DataFrame([{"Residue": "W102", "HotSpot_Score": 0.95}])
