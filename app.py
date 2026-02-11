@@ -1,11 +1,12 @@
 import streamlit as st
 import streamlit.components.v1 as components
+import json
 from your_module import ComplexBuilder
 
 def show_3d_viewer(pdb_text):
-    """3Dmol.js で Cartoon (Ribbon) 表示を行う"""
-    # JavaScript 内で安全に PDB データを扱うために改行をエスケープ
-    pdb_escaped = pdb_text.replace("\n", "\\n")
+    """3Dmol.js で Ribbon (Cartoon) 表示を行う"""
+    # データを安全に JavaScript に渡す
+    pdb_json = json.dumps(pdb_text)
     html_code = f"""
     <div id="container" style="height: 500px; width: 100%;"></div>
     <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
@@ -13,7 +14,7 @@ def show_3d_viewer(pdb_text):
     <script>
         $(function() {{
             let viewer = $3Dmol.createViewer($("#container"), {{backgroundColor: "white"}});
-            let data = `{pdb_escaped}`;
+            let data = {pdb_json};
             viewer.addModel(data, "pdb");
             viewer.setStyle({{cartoon: {{color: 'spectrum'}}}});
             viewer.zoomTo();
@@ -23,8 +24,8 @@ def show_3d_viewer(pdb_text):
     """
     components.html(html_code, height=520)
 
-st.set_page_config(page_title="GlycoVaccine Studio v3.1", layout="wide", page_icon="🧪")
-st.title("🧪 GlycoVaccine Studio v3.1")
+st.set_page_config(page_title="GlycoVaccine Studio v3.2", layout="wide", page_icon="🧪")
+st.title("🧪 GlycoVaccine Studio v3.2")
 
 tab1, = st.tabs(["🧬 1. 複合体作製"])
 
@@ -41,17 +42,10 @@ with tab1:
         if prot_seq:
             builder = ComplexBuilder()
             pdb_data = builder.build_complex_pdb(prot_seq, l_smi, g_smi)
-            st.success(f"アミノ酸数 {len(prot_seq)} の螺旋構造モデルを生成しました。")
+            st.success("有効な Ribbon 構造モデルを生成しました。")
             
-            # アプリ内での 3D 表示
+            # アプリ内表示
             show_3d_viewer(pdb_data)
             
-            # CueMol2 用ダウンロード
-            st.download_button(
-                label="📥 CueMol2 用 PDB をダウンロード",
-                data=pdb_data,
-                file_name="antigen_complex.pdb",
-                mime="chemical/x-pdb"
-            )
-        else:
-            st.warning("配列を入力してください。")
+            # ダウンロード
+            st.download_button("📥 CueMol2 用 PDB をダウンロード", pdb_data, "antigen_complex.pdb")
