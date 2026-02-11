@@ -60,11 +60,10 @@ with tab1:
         st.session_state.last_linker_smiles = linker_smiles
         st.session_state.last_smiles = glycan_smiles
         st.session_state.last_bond_idx = bond_idx
-        st.success("リンカーを含む抗原情報を保存しました。")
+        st.success("抗原情報を保存しました。")
 
 # --- Tab 2: モデル解析 ---
 with tab2:
-    st.header("📊 Model Evaluation (SASA)")
     uploaded = st.file_uploader("Upload CIF models", accept_multiple_files=True, key="eval")
     if uploaded:
         wf = GlycoConjugateWorkflow(job_name)
@@ -77,7 +76,6 @@ with tab2:
 
 # --- Tab 3: 抗体解析 ---
 with tab3:
-    st.header("🛡️ Paratope Analysis")
     complex_file = st.file_uploader("Upload Complex CIF", key="comp")
     if complex_file:
         content = complex_file.read().decode("utf-8")
@@ -88,22 +86,19 @@ with tab3:
             st.dataframe(df_para)
             show_3d_model(content)
 
-# --- Tab 4: Hot Spot解析 ---
+# --- Tab 4: Hot Spot ---
 with tab4:
-    st.header("🔥 Hot Spot Prediction")
     hs_file = st.file_uploader("Upload Structure", key="hs")
     if hs_file:
         content = hs_file.read().decode("utf-8")
-        with open("temp_hs.cif", "w") as f: f.write(content)
         if st.button("Run Hot Spot Scan"):
-            analyzer = LightweightHotSpotAnalyzer("temp_hs.cif", h_chain=h_id, l_chain=l_id)
+            analyzer = LightweightHotSpotAnalyzer(hs_file, h_chain=h_id, l_chain=l_id)
             res = analyzer.run_contact_density_scan()
             st.dataframe(res.head(10))
             st.bar_chart(res.set_index("Residue")["HotSpot_Score"])
 
 # --- Tab 5: 抗体デザイン ---
 with tab5:
-    st.header("🎨 Antibody Binder Design")
     designer = AntibodyDesigner()
     motif = st.selectbox("Target Motif", ["Tn Antigen"])
     ranked = designer.get_ranked_candidates(motif)
