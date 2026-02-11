@@ -1,47 +1,54 @@
-import pandas as pd
+import numpy as np
 
 class ComplexBuilder:
-    """タンパク質と糖鎖の情報を統合し、CueMol2 準拠の PDB を作成する"""
+    """CueMol2 で Ribbon 表示が可能な PDB を生成する"""
     
-    def _generate_backbone_pdb(self, sequence, chain_id="A", offset_z=0.0):
-        """CueMol2 のリボン表示に必要な N, CA, C, O 原子を生成する"""
+    def _generate_helical_coords(self, sequence, chain_id="A", offset_z=0.0):
+        """
+        リボン演算が可能なように、螺旋状の座標を生成する。
+        完全な直線だと CueMol2 の SplineRenderer がエラーになるため。
+        """
         lines = []
         atom_idx = 1
-        # アミノ酸配列をループして原子座標を計算
+        
+        # 螺旋のパラメータ (Alpha-helix の近似値)
+        radius = 2.3  # 螺旋の半径
+        pitch = 1.5   # 残基ごとの Z 軸上昇量
+        theta_step = 100 * (np.pi / 180) # 残基ごとの回転角 (約100度)
+
         for i, aa in enumerate(sequence):
             res_idx = i + 1
-            z_base = offset_z + (i * 3.8) # 残基間隔 3.8A
+            theta = i * theta_step
             
-            # 主鎖原子 (N, CA, C, O) の簡易的な幾何配置
-            # これにより CueMol2 の SplineRenderer が正常に計算可能になる
+            # CA 原子の座標計算
+            ca_x = radius * np.cos(theta)
+            ca_y = radius * np.sin(theta)
+            ca_z = offset_z + (i * pitch)
+            
+            # 主鎖原子セット (N, CA, C, O)
+            # CA を基準に少しずつずらして配置し、ペプチド平面の向きを定義する
             atoms = [
-                ("N ", 0.0, 1.4, z_base - 1.0, "N"),
-                ("CA", 0.0, 0.0, z_base,       "C"),
-                ("C ", 0.0, 1.4, z_base + 1.0, "C"),
-                ("O ", 1.2, 2.0, z_base + 1.0, "O")
+                ("N ", ca_x - 0.5, ca_y + 1.2, ca_z - 1.0, "N"),
+                ("CA", ca_x,       ca_y,       ca_z,       "C"),
+                ("C ", ca_x + 0.5, ca_y - 1.2, ca_z + 1.0, "C"),
+                ("O ", ca_x + 1.5, ca_y - 1.5, ca_z + 1.0, "O")
             ]
             
             for name, x, y, z, elem in atoms:
-                # PDB ATOM レコードの厳格なフォーマット (カラム位置を固定)
+                # PDB ATOM レコードの厳密なフォーマット
                 line = f"ATOM  {atom_idx:>5}  {name}  ALA {chain_id}{res_idx:>4}    {x:>8.3f}{y:>8.3f}{z:>8.3f}  1.00  0.00           {elem}"
                 lines.append(line)
                 atom_idx += 1
         return "\n".join(lines) + "\nTER"
 
     def build_complex_pdb(self, protein_seq, linker_smi, glycan_smi):
-        """抗原、リンカー、糖鎖情報を統合した PDB 文字列を生成"""
-        # 不要な空白などをクリーニング
+        """統合された PDB テキストを生成"""
         protein_seq = protein_seq.strip().upper()
-        linker_smi = linker_smi.strip()
-        glycan_smi = glycan_smi.strip()
-        
-        # PDB ヘッダー情報の作成
         header = [
-            "REMARK   Built by GlycoVaccine Studio",
-            f"REMARK   Carrier Protein Length: {len(protein_seq)}",
-            f"REMARK   Linker SMILES: {linker_smi}",
-            f"REMARK   Glycan SMILES: {glycan_smi}"
+            "REMARK   Built by GlycoVaccine Studio v3.1",
+            f"REMARK   Carrier: {protein_seq[:20]}...",
+            f"REMARK   Linker: {linker_smi}",
+            f"REMARK   Glycan: {glycan_smi}"
         ]
-        
-        pdb_body = self._generate_backbone_pdb(protein_seq)
+        pdb_body = self._generate_helical_coords(protein_seq)
         return "\n".join(header) + "\n" + pdb_body + "\nEND"
