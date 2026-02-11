@@ -19,19 +19,22 @@ class GlycoConjugateWorkflow:
         return {"glycan_sasa": glycan_sasa}
 
     def create_full_complex_json(self, job_name, antigen_prot, glycan_smiles, linker_smiles, bond_res_idx, h_seq, l_seq):
-        """AF3 Server 完全準拠版 JSON生成 (Linker空入力対応)"""
+        """AlphaFold 3 Server (Web UI) 仕様に完全に準拠したJSON生成"""
+        # 配列の余計な空白を削除し、大文字に統一
         antigen_prot = antigen_prot.strip().upper()
         h_seq = h_seq.strip().upper()
         l_seq = l_seq.strip().upper()
         
-        # リンカーと糖鎖を統合（AF3では"."で繋ぐか一つのSMILESとして記述）
-        # 修正：リンカーがある場合のみドットで連結する
-        if linker_smiles and glycan_smiles:
-            combined_ligand = f"{linker_smiles}.{glycan_smiles}"
-        else:
-            combined_ligand = (linker_smiles + glycan_smiles).strip()
+        # リンカーと糖鎖を統合（空白を除去し、両方ある場合のみドットで連結）
+        g_smi = glycan_smiles.strip()
+        l_smi = linker_smiles.strip()
         
-        # サーバー仕様：camelCaseのキー名とリスト形式が必須
+        if l_smi and g_smi:
+            combined_ligand = f"{l_smi}.{g_smi}"
+        else:
+            combined_ligand = g_smi if g_smi else l_smi
+        
+        # サーバー仕様：キャメルケースのキー名とリスト形式
         job_data = {
             "name": job_name,
             "modelContents": [
@@ -69,17 +72,12 @@ class GlycoConjugateWorkflow:
                 }
             ]
         }
-        return [job_data] # ジョブをリスト[]で囲む
+        return [job_data]
 
 class CDRScorer:
     HYDRO_SCALE = {'A': 0.62, 'R': -2.53, 'N': -0.78, 'D': -0.90, 'C': 0.29, 'Q': -0.85, 'E': -0.74, 'G': 0.48, 'H': -0.40, 'I': 1.38, 'L': 1.06, 'K': -1.50, 'M': 0.64, 'F': 1.19, 'P': 0.12, 'S': -0.18, 'T': -0.05, 'W': 0.81, 'Y': 0.26, 'V': 1.08}
-
     @classmethod
     def calculate_advanced_score(cls, h_cdrs, l_cdrs):
-        """
-        高度なスコアリング：残基寄与 + H3長さ + 疎水性モーメント
-        $$Total\_Score = S_{residue} + S_{length} + S_{moment}$$
-        """
         h3_seq = h_cdrs[2]
         all_cdrs = "".join(h_cdrs + l_cdrs)
         s_res = (all_cdrs.count('Y') + all_cdrs.count('W')) * 3.0 + (all_cdrs.count('S') + all_cdrs.count('T')) * 1.5
@@ -99,7 +97,6 @@ class AntibodyDesigner:
                 {"name": "Clone_Tn_B5", "H_CDRs": ["GYTFTSYY", "ISSGGGTY", "ARGDYGYWYFDV"], "L_CDRs": ["QDISNY", "YTS", "QQGNTLPWT"]}
             ]
         }
-
     def get_ranked_candidates(self, motif):
         candidates = self.library.get(motif, [])
         scored_list = []
