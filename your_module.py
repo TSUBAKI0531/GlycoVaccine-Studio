@@ -1,12 +1,12 @@
 import numpy as np
 
 class ComplexBuilder:
-    """CueMol2 で Ribbon 表示が可能な PDB を生成する"""
+    """CueMol2 で Ribbon 表示が可能な PDB を生成するロジック"""
     
-    def _generate_helical_coords(self, sequence, chain_id="A", offset_z=0.0):
+    def _generate_helical_pdb(self, sequence, chain_id="A", offset_z=0.0):
         """
         リボン演算が可能なように、螺旋状の座標を生成する。
-        完全な直線だと CueMol2 の SplineRenderer がエラーになるため。
+        完全な直線だと CueMol2 の SplineRenderer がエラーになるため、曲率を与える。
         """
         lines = []
         atom_idx = 1
@@ -20,12 +20,12 @@ class ComplexBuilder:
             res_idx = i + 1
             theta = i * theta_step
             
-            # CA 原子の座標計算
+            # CA 原子の座標計算 (螺旋状に配置)
             ca_x = radius * np.cos(theta)
             ca_y = radius * np.sin(theta)
             ca_z = offset_z + (i * pitch)
             
-            # 主鎖原子セット (N, CA, C, O)
+            # 各残基の主鎖原子セット (N, CA, C, O)
             # CA を基準に少しずつずらして配置し、ペプチド平面の向きを定義する
             atoms = [
                 ("N ", ca_x - 0.5, ca_y + 1.2, ca_z - 1.0, "N"),
@@ -35,7 +35,6 @@ class ComplexBuilder:
             ]
             
             for name, x, y, z, elem in atoms:
-                # PDB ATOM レコードの厳密なフォーマット
                 line = f"ATOM  {atom_idx:>5}  {name}  ALA {chain_id}{res_idx:>4}    {x:>8.3f}{y:>8.3f}{z:>8.3f}  1.00  0.00           {elem}"
                 lines.append(line)
                 atom_idx += 1
@@ -50,5 +49,5 @@ class ComplexBuilder:
             f"REMARK   Linker: {linker_smi}",
             f"REMARK   Glycan: {glycan_smi}"
         ]
-        pdb_body = self._generate_helical_coords(protein_seq)
+        pdb_body = self._generate_helical_pdb(protein_seq)
         return "\n".join(header) + "\n" + pdb_body + "\nEND"

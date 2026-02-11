@@ -4,11 +4,12 @@ from your_module import ComplexBuilder
 
 def show_3d_viewer(pdb_text):
     """3Dmol.js で Cartoon (Ribbon) 表示を行う"""
-    # JS 内で PDB データを安全に扱うために改行を処理
+    # JavaScript 内で安全に PDB データを扱うために改行をエスケープ
     pdb_escaped = pdb_text.replace("\n", "\\n")
     html_code = f"""
     <div id="container" style="height: 500px; width: 100%;"></div>
     <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
         $(function() {{
             let viewer = $3Dmol.createViewer($("#container"), {{backgroundColor: "white"}});
@@ -22,7 +23,7 @@ def show_3d_viewer(pdb_text):
     """
     components.html(html_code, height=520)
 
-st.set_page_config(page_title="GlycoVaccine Studio", layout="wide")
+st.set_page_config(page_title="GlycoVaccine Studio v3.1", layout="wide", page_icon="🧪")
 st.title("🧪 GlycoVaccine Studio v3.1")
 
 tab1, = st.tabs(["🧬 1. 複合体作製"])
@@ -40,10 +41,17 @@ with tab1:
         if prot_seq:
             builder = ComplexBuilder()
             pdb_data = builder.build_complex_pdb(prot_seq, l_smi, g_smi)
-            st.success("螺旋構造モデルを生成しました。")
+            st.success(f"アミノ酸数 {len(prot_seq)} の螺旋構造モデルを生成しました。")
             
-            # アプリ内での表示
+            # アプリ内での 3D 表示
             show_3d_viewer(pdb_data)
             
-            # ダウンロード
-            st.download_button("📥 CueMol2 用 PDB をダウンロード", pdb_data, "antigen_complex.pdb")
+            # CueMol2 用ダウンロード
+            st.download_button(
+                label="📥 CueMol2 用 PDB をダウンロード",
+                data=pdb_data,
+                file_name="antigen_complex.pdb",
+                mime="chemical/x-pdb"
+            )
+        else:
+            st.warning("配列を入力してください。")
