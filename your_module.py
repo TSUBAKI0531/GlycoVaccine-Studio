@@ -14,12 +14,11 @@ class GlycoConjugateWorkflow:
         struct = parser.get_structure("model", cif_path)[0]
         sr = ShrakeRupley()
         sr.compute(struct, level="R")
-        # 抗原(A鎖)以外の糖鎖部分のSASAを合計
         glycan_sasa = sum(getattr(res, 'sasa', 0.0) for chain in struct if chain.id != 'A' for res in chain)
         return {"glycan_sasa": glycan_sasa}
 
     def create_full_complex_json(self, job_name, antigen_prot, glycan_smiles, linker_smiles, bond_res_idx, h_seq, l_seq):
-        """AlphaFold 3 Server (Web UI) 仕様に完全に準拠したJSON生成"""
+        """AlphaFold 3 Server 仕様に完全に準拠したJSON生成"""
         # 配列の余計な空白を削除し、大文字に統一
         antigen_prot = antigen_prot.strip().upper()
         h_seq = h_seq.strip().upper()
@@ -34,31 +33,35 @@ class GlycoConjugateWorkflow:
         else:
             combined_ligand = g_smi if g_smi else l_smi
         
-        # サーバー仕様：キャメルケースのキー名とリスト形式
+        # サーバー仕様：camelCase のキー名、count 指定、および label を付与
         job_data = {
             "name": job_name,
             "modelContents": [
                 {
                     "protein": {
                         "sequence": antigen_prot,
+                        "count": 1,
                         "label": "Antigen_Carrier"
                     }
                 },
                 {
                     "ligand": {
                         "smiles": combined_ligand,
+                        "count": 1,
                         "label": "Glycan_Linker"
                     }
                 },
                 {
                     "protein": {
                         "sequence": h_seq,
+                        "count": 1,
                         "label": "Antibody_H"
                     }
                 },
                 {
                     "protein": {
                         "sequence": l_seq,
+                        "count": 1,
                         "label": "Antibody_L"
                     }
                 }
