@@ -24,16 +24,17 @@ class GlycoConjugateWorkflow:
         h_seq = h_seq.strip().upper()
         l_seq = l_seq.strip().upper()
         
-        # リンカーと糖鎖を統合（空白を除去し、両方ある場合のみドットで連結）
+        # リンカーと糖鎖を統合（空白を完全に除去）
         g_smi = glycan_smiles.strip()
         l_smi = linker_smiles.strip()
         
+        # リンカーと糖鎖の両方がある場合のみドットで連結
         if l_smi and g_smi:
             combined_ligand = f"{l_smi}.{g_smi}"
         else:
             combined_ligand = g_smi if g_smi else l_smi
         
-        # サーバー仕様：camelCase のキー名、count 指定、および label を付与
+        # camelCase のキー名と count: 1 を明示的に指定
         job_data = {
             "name": job_name,
             "modelContents": [
