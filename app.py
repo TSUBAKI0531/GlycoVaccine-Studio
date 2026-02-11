@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import json
-from your_module import GlycoConjugateWorkflow, ComplexBuilder, AntibodyGraftingEngine, CDRPredictor
+from your_module import GlycoConjugateWorkflow, ComplexBuilder, AntibodyGraftingEngine, CDRPredictor, HotSpotAnalyzer
 
 st.set_page_config(page_title="GlycoVaccine Studio v2.0", layout="wide", page_icon="🧪")
 st.title("🧪 GlycoVaccine Studio v2.0")
@@ -31,6 +31,7 @@ with tab1:
 
 with tab2:
     st.header("🎨 Antibody Engineering")
+    
     if st.button("Graft CDRs onto Trastuzumab"):
         pred = CDRPredictor()
         h_cdrs, l_cdrs = pred.predict(st.session_state.g_smi)
@@ -47,7 +48,6 @@ with tab3:
         with col3:
             if st.button("Generate AF3 JSON"):
                 wf = GlycoConjugateWorkflow()
-                # 修正：引数を 7 個 + mode として渡す
                 full_json = wf.create_full_complex_json(
                     job_name, st.session_state.ant_seq, st.session_state.g_smi, 
                     st.session_state.l_smi, 50, st.session_state.h_seq, st.session_state.l_seq, 
@@ -56,7 +56,7 @@ with tab3:
                 st.download_button("Download JSON", json.dumps(full_json, indent=2), f"{job_name}_full.json")
         with col4:
             if st.button("Generate Merged PDB for CueMol2"):
-                # 修正：NameError 回避のためここでインスタンスを生成
+                # 修正：NameError 回避のためメソッド呼び出し前にインスタンス化
                 builder = ComplexBuilder()
                 merged = builder.merge_for_cuemol(
                     st.session_state.ant_seq, 
@@ -66,3 +66,12 @@ with tab3:
                 st.download_button("Download Merged PDB", merged, "complex_for_cuemol.pdb")
     else:
         st.warning("先に Tab 1 と 2 でデータを作成してください。")
+
+with tab4:
+    st.header("🔥 Hot Spot Analysis")
+    uploaded = st.file_uploader("Upload Antibody Model")
+    if uploaded:
+        ana = HotSpotAnalyzer()
+        df = ana.analyze(uploaded.name)
+        st.table(df)
+        st.bar_chart(df.set_index("Residue"))

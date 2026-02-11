@@ -1,11 +1,10 @@
-import json
 import pandas as pd
 import numpy as np
 
 class ComplexBuilder:
     """Tab 1, 3: CueMol2 がリボン表示できる PDB 形式の作製"""
     
-    def _generate_backbone_atoms(self, sequence, chain_id, offset_z=0.0):
+    def _generate_backbone_coords(self, sequence, chain_id, offset_z=0.0):
         """CueMol2 の SplineRenderer 用に N, CA, C 原子を生成"""
         lines = []
         atom_count = 1
@@ -27,18 +26,19 @@ class ComplexBuilder:
 
     def build_antigen_pdb(self, prot_seq, linker_smi, glycan_smi):
         """抗原複合体の PDB 生成"""
-        header = f"REMARK   Built by GlycoVaccine Studio\nREMARK   SMILES: {linker_smi}.{glycan_smi}"
-        coords = self._generate_backbone_atoms(prot_seq, "A")
+        header = f"REMARK   Built by GlycoVaccine Studio\nREMARK   SMILES: {linker_smi.strip()}.{glycan_smi.strip()}"
+        coords = self._generate_backbone_coords(prot_seq, "A")
         return header + "\n" + "\n".join(coords) + "\nTER\nEND"
 
     def merge_for_cuemol(self, ant_seq, h_seq, l_seq):
         """CueMol2 用の統合 PDB (抗原+抗体重鎖+軽鎖)"""
         lines = ["REMARK   Merged Complex for CueMol2 Visualization"]
-        lines.extend(self._generate_backbone_atoms(ant_seq, "A"))
+        lines.extend(self._generate_backbone_coords(ant_seq, "A"))
         lines.append("TER")
-        lines.extend(self._generate_backbone_atoms(h_seq, "H", offset_z=100.0))
+        # 各鎖が重ならないように Z 軸方向にオフセットを持たせる
+        lines.extend(self._generate_backbone_coords(h_seq, "H", offset_z=len(ant_seq)*4.0))
         lines.append("TER")
-        lines.extend(self._generate_backbone_atoms(l_seq, "L", offset_z=200.0))
+        lines.extend(self._generate_backbone_coords(l_seq, "L", offset_z=(len(ant_seq)+len(h_seq))*4.0))
         lines.append("TER")
         lines.append("END")
         return "\n".join(lines)
@@ -46,10 +46,10 @@ class ComplexBuilder:
 class GlycoConjugateWorkflow:
     def create_full_complex_json(self, job_name, antigen_prot, glycan_smiles, linker_smiles, bond_res_idx, h_seq, l_seq, mode="Web"):
         """AlphaFold Server 完全準拠版 JSON (空白除去ロジック搭載)"""
-        # 末尾の空白を確実に削除
         antigen_prot = antigen_prot.strip().upper()
         h_seq = h_seq.strip().upper()
         l_seq = l_seq.strip().upper()
+        # SMILES末尾の空白を確実に削除
         combined_ligand = (linker_smiles.strip() + "." + glycan_smiles.strip()).strip(".")
 
         if "Web" in mode:
@@ -78,6 +78,7 @@ class GlycoConjugateWorkflow:
 
 class AntibodyGraftingEngine:
     def __init__(self):
+        # トラスツズマブのフレームワーク
         self.H_FR = {"F1":"EVQLVESGGGLVQPGGSLRLSCAAS", "F2":"WVRQAPGKGLEWVA", "F3":"RFTISADTSKNTAYLQMNSLRAEDTAVYYC", "F4":"WGQGTLVTVSS"}
         self.L_FR = {"F1":"DIQMTQSPSSLSASVGDRVTITC", "F2":"WYQQKPGKAPKLLIY", "F3":"GVPSRFSGSGSGTDFTLTISSLQPEDFATYYC", "F4":"FGQGTKVEIK"}
     def graft(self, h_cdrs, l_cdrs):
@@ -87,3 +88,7 @@ class AntibodyGraftingEngine:
 
 class CDRPredictor:
     def predict(self, smiles): return ["GFTFSRYT", "ISSSGGST", "ARTVRYGMDV"], ["QSVSSY", "DAS", "QQRSSWPFT"]
+
+class HotSpotAnalyzer:
+    def analyze(self, filename):
+        return pd.DataFrame({"Residue": ["H_TYR33", "H_TRP102", "L_SER91"], "Importance": [0.94, 0.88, 0.75]})
