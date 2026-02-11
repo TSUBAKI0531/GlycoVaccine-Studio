@@ -37,7 +37,7 @@ with tab1:
         st.session_state.last_bond_idx = bond_idx
         st.success("抗原情報を保存しました。")
 
-# --- Tab 5: 抗体デザイン（ここでTypeErrorが発生していた箇所） ---
+# --- Tab 5: 抗体デザイン ---
 with tab5:
     st.header("🎨 Antibody Design")
     designer = AntibodyDesigner()
@@ -51,7 +51,7 @@ with tab5:
     if st.button("Generate AF3 JSON"):
         if st.session_state.last_antigen_prot:
             wf = GlycoConjugateWorkflow(job_name)
-            # 引数の数をyour_module.pyの定義(7個+keyword)と完全に一致させる
+            # すべての引数（7個）を確実に渡すことでTypeErrorを回避します
             full_json = wf.create_full_complex_json(
                 job_name, 
                 st.session_state.last_antigen_prot, 
@@ -60,7 +60,7 @@ with tab5:
                 st.session_state.last_bond_idx, 
                 best["H_AA"], 
                 best["L_AA"], 
-                platform=platform
+                mode="Web"
             )
             st.download_button("Download JSON", json.dumps(full_json, indent=2), f"{job_name}_full.json")
         else:
