@@ -31,7 +31,6 @@ def show_3d_model(cif_text):
     </script>"""
     components.html(html_code, height=520)
 
-# --- アプリ設定 ---
 st.set_page_config(page_title="GlycoVaccine Studio", layout="wide", page_icon="🧪")
 st.title("🧪 GlycoVaccine Studio v1.5")
 
@@ -47,14 +46,21 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 
 # --- Tab 1: 抗原デザイン ---
 with tab1:
-    prot_seq = st.text_area("Antigen Protein Sequence")
-    smiles = st.text_input("Glycan SMILES")
+    st.header("🧬 Antigen Design with Linker")
+    prot_seq = st.text_area("Antigen Protein Sequence (Carrier)")
+    col1, col2 = st.columns(2)
+    with col1:
+        linker_smiles = st.text_input("Linker SMILES")
+    with col2:
+        glycan_smiles = st.text_input("Glycan SMILES")
     bond_idx = st.number_input("Bonding Residue Index", value=1)
+    
     if st.button("Save Antigen Info"):
         st.session_state.last_antigen_prot = prot_seq
-        st.session_state.last_smiles = smiles
+        st.session_state.last_linker_smiles = linker_smiles
+        st.session_state.last_smiles = glycan_smiles
         st.session_state.last_bond_idx = bond_idx
-        st.success("抗原情報を保存しました。")
+        st.success("リンカーを含む抗原情報を保存しました。")
 
 # --- Tab 2: モデル解析 ---
 with tab2:
@@ -69,21 +75,20 @@ with tab2:
             st.write(f"Model: {f.name}, SASA: {res['glycan_sasa']:.2f}")
             st.session_state.analysis_history.append({"Job": job_name, "Type": "SASA", "Target": f.name, "Score": res['glycan_sasa']})
 
-# --- Tab 3: 抗体解析 (復旧箇所) ---
+# --- Tab 3: 抗体解析 ---
 with tab3:
     st.header("🛡️ Paratope Analysis")
     complex_file = st.file_uploader("Upload Complex CIF", key="comp")
     if complex_file:
         content = complex_file.read().decode("utf-8")
         with open("temp_comp.cif", "w") as f: f.write(content)
-        
         if st.button("Analyze Paratope"):
             adw = AntibodyDockingWorkflow(job_name, h_chain=h_id, l_chain=l_id)
             df_para = adw.analyze_paratope("temp_comp.cif")
             st.dataframe(df_para)
             show_3d_model(content)
 
-# --- Tab 4: Hot Spot解析 (復旧箇所) ---
+# --- Tab 4: Hot Spot解析 ---
 with tab4:
     st.header("🔥 Hot Spot Prediction")
     hs_file = st.file_uploader("Upload Structure", key="hs")
@@ -112,7 +117,9 @@ with tab5:
             wf = GlycoConjugateWorkflow(job_name)
             full_json = wf.create_full_complex_json(
                 job_name, st.session_state.last_antigen_prot, 
-                st.session_state.last_smiles, st.session_state.last_bond_idx, 
+                st.session_state.last_smiles, 
+                st.session_state.get('last_linker_smiles', ""),
+                st.session_state.last_bond_idx, 
                 best["H_AA"], best["L_AA"]
             )
             st.download_button("Download Full JSON", json.dumps(full_json, indent=2), f"{job_name}_full.json")

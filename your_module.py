@@ -9,37 +9,64 @@ class GlycoConjugateWorkflow:
         self.job_name = job_name
 
     def _calculate_sasa(self, cif_path):
+        """Biopythonを用いた安定版SASA計算"""
         parser = MMCIFParser(QUIET=True)
         struct = parser.get_structure("model", cif_path)[0]
         sr = ShrakeRupley()
         sr.compute(struct, level="R")
+        # A鎖（抗原タンパク）以外の糖鎖部分のSASAを合計
         glycan_sasa = sum(getattr(res, 'sasa', 0.0) for chain in struct if chain.id != 'A' for res in chain)
         return {"glycan_sasa": glycan_sasa}
 
-    def create_full_complex_json(self, job_name, antigen_prot, smiles, bond_res_idx, h_seq, l_seq):
+    def create_full_complex_json(self, job_name, antigen_prot, glycan_smiles, linker_smiles, bond_res_idx, h_seq, l_seq):
+        """抗原+リンカー+糖鎖+抗体のフルコンプレックスJSONを生成"""
+        # リンカーと糖鎖を一つのリガンドとして統合
+        combined_ligand = f"{linker_smiles}{glycan_smiles}"
+        
         data = {
             "name": job_name,
             "model_contents": [
-                {"protein": {"sequence": antigen_prot, "count": 1}},
-                {"ligand": {"smiles": smiles, "count": 1}},
-                {"protein": {"sequence": h_seq, "count": 1}},
-                {"protein": {"sequence": l_seq, "count": 1}}
+                {"protein": {"sequence": antigen_prot, "count": 1}}, # Entity 1
+                {"ligand": {"smiles": combined_ligand, "count": 1}}, # Entity 2
+                {"protein": {"sequence": h_seq, "count": 1}},        # Entity 3
+                {"protein": {"sequence": l_seq, "count": 1}}         # Entity 4
             ],
-            "bonds": [{"res1_id": int(bond_res_idx), "res2_id": 1, "entity1_id": 1, "entity2_id": 2}]
+            "bonds": [
+                {
+                    "res1_id": int(bond_res_idx),
+                    "res2_id": 1, 
+                    "entity1_id": 1,
+                    "entity2_id": 2
+                }
+            ]
         }
         return data
 
 class CDRScorer:
-    HYDRO_SCALE = {'A': 0.62, 'R': -2.53, 'N': -0.78, 'D': -0.90, 'C': 0.29, 'Q': -0.85, 'E': -0.74, 'G': 0.48, 'H': -0.40, 'I': 1.38, 'L': 1.06, 'K': -1.50, 'M': 0.64, 'F': 1.19, 'P': 0.12, 'S': -0.18, 'T': -0.05, 'W': 0.81, 'Y': 0.26, 'V': 1.08}
+    HYDRO_SCALE = {
+        'A': 0.62, 'R': -2.53, 'N': -0.78, 'D': -0.90, 'C': 0.29, 'Q': -0.85,
+        'E': -0.74, 'G': 0.48, 'H': -0.40, 'I': 1.38, 'L': 1.06, 'K': -1.50,
+        'M': 0.64, 'F': 1.19, 'P': 0.12, 'S': -0.18, 'T': -0.05, 'W': 0.81,
+        'Y': 0.26, 'V': 1.08
+    }
+
     @classmethod
     def calculate_advanced_score(cls, h_cdrs, l_cdrs):
+        """高度なスコアリング：残基寄与 + H3長さ + 疎水性モーメント"""
         h3_seq = h_cdrs[2]
         all_cdrs = "".join(h_cdrs + l_cdrs)
+        
+        # 1. 残基寄与
         s_res = (all_cdrs.count('Y') + all_cdrs.count('W')) * 3.0 + (all_cdrs.count('S') + all_cdrs.count('T')) * 1.5
+        
+        # 2. H3長さ（10-16残基を理想とする）
         h3_len = len(h3_seq)
         s_len = 5.0 if 10 <= h3_len <= 16 else -3.0
+        
+        # 3. 疎水性モーメント（両親媒性）
         h_values = [cls.HYDRO_SCALE.get(aa, 0) for aa in h3_seq]
         s_moment = 10.0 * (1.0 - abs(np.mean(h_values) - 0.1)) if h_values else 0
+        
         return round(s_res + s_len + s_moment, 2)
 
 class AntibodyDesigner:
@@ -52,6 +79,7 @@ class AntibodyDesigner:
                 {"name": "Clone_Tn_B5", "H_CDRs": ["GYTFTSYY", "ISSGGGTY", "ARGDYGYWYFDV"], "L_CDRs": ["QDISNY", "YTS", "QQGNTLPWT"]}
             ]
         }
+
     def get_ranked_candidates(self, motif):
         candidates = self.library.get(motif, [])
         scored_list = []
