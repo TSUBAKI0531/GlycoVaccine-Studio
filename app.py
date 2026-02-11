@@ -47,23 +47,24 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 # --- Tab 1: 抗原デザイン ---
 with tab1:
     st.header("🧬 Antigen Design with Linker")
-    prot_seq = st.text_area("Antigen Protein Sequence (Carrier)")
+    prot_seq = st.text_area("Antigen Protein Sequence (Carrier)", height=150)
     col1, col2 = st.columns(2)
     with col1:
         linker_smiles = st.text_input("Linker SMILES")
     with col2:
         glycan_smiles = st.text_input("Glycan SMILES")
-    bond_idx = st.number_input("Bonding Residue Index", value=1)
+    bond_idx = st.number_input("Bonding Residue Index", value=50)
     
     if st.button("Save Antigen Info"):
         st.session_state.last_antigen_prot = prot_seq
         st.session_state.last_linker_smiles = linker_smiles
         st.session_state.last_smiles = glycan_smiles
         st.session_state.last_bond_idx = bond_idx
-        st.success("抗原情報を保存しました。Tab 5でJSONを作成できます。")
+        st.success("抗原情報を保存しました。")
 
 # --- Tab 2: モデル解析 ---
 with tab2:
+    st.header("📊 Model Evaluation (SASA)")
     uploaded = st.file_uploader("Upload CIF models", accept_multiple_files=True, key="eval")
     if uploaded:
         wf = GlycoConjugateWorkflow(job_name)
@@ -76,6 +77,7 @@ with tab2:
 
 # --- Tab 3: 抗体解析 ---
 with tab3:
+    st.header("🛡️ Paratope Analysis")
     complex_file = st.file_uploader("Upload Complex CIF", key="comp")
     if complex_file:
         content = complex_file.read().decode("utf-8")
@@ -88,6 +90,7 @@ with tab3:
 
 # --- Tab 4: Hot Spot ---
 with tab4:
+    st.header("🔥 Hot Spot Prediction")
     hs_file = st.file_uploader("Upload Structure", key="hs")
     if hs_file:
         if st.button("Run Hot Spot Scan"):
@@ -98,12 +101,14 @@ with tab4:
 
 # --- Tab 5: 抗体デザイン ---
 with tab5:
+    st.header("🎨 Antibody Candidate Ranking")
     designer = AntibodyDesigner()
     motif = st.selectbox("Target Motif", ["Tn Antigen"])
     ranked = designer.get_ranked_candidates(motif)
     st.table(pd.DataFrame(ranked)[["name", "Score"]])
     
-    selected = st.selectbox("Select Candidate", [r["name"] for r in ranked])
+    st.divider()
+    selected = st.selectbox("Select Candidate to Export", [r["name"] for r in ranked])
     best = next(r for r in ranked if r["name"] == selected)
     
     if st.button("Generate AF3 Full JSON"):
@@ -119,7 +124,7 @@ with tab5:
             json_str = json.dumps(full_json_list, indent=2)
             st.download_button("Download Full JSON", json_str, f"{job_name}_full.json", "application/json")
         else:
-            st.warning("先にタブ1で抗原情報を保存してください。")
+            st.warning("先に「🧬 抗原デザイン」タブで情報を保存してください。")
 
 # --- Tab 6: 履歴 ---
 with tab6:
