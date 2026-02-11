@@ -12,7 +12,7 @@ class ComplexBuilder:
             z_base = offset_z + (i * 3.8) # 残基間隔を 3.8A に設定
             
             # 各残基の主鎖原子（N, CA, C, O）の相対座標
-            # CueMol2 のレンダリングを安定させるための簡易的な幾何配置
+            # CueMol2 のレンダリングを安定させるための幾何配置
             atoms = [
                 ("N ", 0.0, 1.4, z_base - 1.0, "N"),
                 ("CA", 0.0, 0.0, z_base,       "C"),
@@ -28,8 +28,7 @@ class ComplexBuilder:
         return "\n".join(lines) + "\nTER"
 
     def build_complex_pdb(self, protein_seq, linker_smi, glycan_smi):
-        """ヘッダー情報と主鎖座標を統合した PDB 文字列を生成"""
-        # 末尾の空白などの不要な文字を除去
+        """抗原、リンカー、糖鎖情報を統合した PDB 文字列を生成"""
         protein_seq = protein_seq.strip().upper()
         linker_smi = linker_smi.strip()
         glycan_smi = glycan_smi.strip()

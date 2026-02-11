@@ -23,7 +23,7 @@ def show_3d_viewer(pdb_text):
 st.set_page_config(page_title="GlycoVaccine Studio", layout="wide")
 st.title("🧪 GlycoVaccine Studio")
 
-# タブの作成（まずは Tab 1 から）
+# タブの作成（Tab 1）
 tab1, = st.tabs(["🧬 1. 複合体作製"])
 
 with tab1:
