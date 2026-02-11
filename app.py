@@ -22,7 +22,7 @@ with tab1:
     st.header("🧬 Antigen Design with Linker")
     prot_seq = st.text_area("Antigen Protein Sequence (Carrier)", value=st.session_state.last_antigen_prot)
     
-    # ユーザーの要望に合わせ、リンカーと糖鎖を結合させた単一のSMILESとして入力
+    # リンカーと糖鎖を統合したSMILESとして入力
     glycan_input = st.text_input("Linker + Glycan SMILES", value=st.session_state.last_glycan)
     
     if st.button("Save Antigen Info"):
@@ -46,7 +46,7 @@ with tab5:
             wf = GlycoConjugateWorkflow(job_name)
             mode = "Web" if platform == "AlphaFold Server (Web)" else "Standalone"
             
-            # 修正：引数をyour_module.pyの定義に合わせて5個+modeとして渡す
+            # 引数をyour_module.pyの定義に合わせて確実に渡す
             full_json = wf.create_full_complex_json(
                 job_name, 
                 st.session_state.last_antigen_prot, 

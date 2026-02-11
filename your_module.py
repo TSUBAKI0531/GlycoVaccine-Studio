@@ -19,56 +19,62 @@ class GlycoConjugateWorkflow:
     def create_full_complex_json(self, job_name, antigen_prot, glycan_smiles, h_seq, l_seq, mode="Web"):
         """
         AlphaFold Server (ウェブ版) に完全に準拠したJSON生成
-        TypeErrorを回避するため、app.pyからの引数構成（5個+mode）に合わせています。
+        TypeErrorを回避するため、app.pyからの引数構成に合わせています。
         """
         antigen_prot = antigen_prot.strip().upper()
         h_seq = h_seq.strip().upper()
         l_seq = l_seq.strip().upper()
         
-        # 糖鎖SMILESの空白を削除
-        g_smi = glycan_smiles.strip()
+        # 糖鎖SMILESのクリーニング（ウェブ版での認識を安定させるため、空白を削除）
+        combined_smiles = glycan_smiles.strip()
 
-        # ウェブ版サーバーが期待する正しいキー名（protein, ligand, modelContents）を使用
-        job_data = {
-            "name": job_name,
-            "modelContents": [
-                {
-                    "protein": {
-                        "sequence": antigen_prot,
-                        "label": "Antigen_Carrier"
+        if mode == "Web":
+            # Web Server版の正しいスキーマ (sequences / proteinChain / ligand)
+            job_data = {
+                "name": job_name,
+                "modelSeeds": [],
+                "sequences": [
+                    {
+                        "proteinChain": {
+                            "sequence": antigen_prot,
+                            "count": 1
+                        }
+                    },
+                    {
+                        "ligand": {
+                            "smiles": combined_smiles,
+                            "count": 1
+                        }
+                    },
+                    {
+                        "proteinChain": {
+                            "sequence": h_seq,
+                            "count": 1
+                        }
+                    },
+                    {
+                        "proteinChain": {
+                            "sequence": l_seq,
+                            "count": 1
+                        }
                     }
-                },
-                {
-                    "ligand": {
-                        "smiles": g_smi,
-                        "label": "Glycan_Linker"
-                    }
-                },
-                {
-                    "protein": {
-                        "sequence": h_seq,
-                        "label": "Antibody_H"
-                    }
-                },
-                {
-                    "protein": {
-                        "sequence": l_seq,
-                        "label": "Antibody_L"
-                    }
-                }
-            ],
-            "userBonds": [
-                {
-                    "resId1": 50, # デモ用の結合インデックス
-                    "entityId1": 1,
-                    "resId2": 1,
-                    "entityId2": 2
-                }
-            ]
-        }
-        # サーバーはジョブのリスト [ ] 形式を期待します
-        return [job_data]
+                ]
+            }
+            return [job_data] # ウェブ版はジョブのリスト形式
+        else:
+            # Standalone版のスキーマ
+            job_data = {
+                "name": job_name,
+                "modelContents": [
+                    {"protein": {"sequence": antigen_prot}},
+                    {"ligand": {"smiles": combined_smiles}},
+                    {"protein": {"sequence": h_seq}},
+                    {"protein": {"sequence": l_seq}}
+                ]
+            }
+            return job_data
 
+# --- 解析関連のクラス ---
 class CDRScorer:
     HYDRO_SCALE = {'A': 0.62, 'R': -2.53, 'N': -0.78, 'D': -0.90, 'C': 0.29, 'Q': -0.85, 'E': -0.74, 'G': 0.48, 'H': -0.40, 'I': 1.38, 'L': 1.06, 'K': -1.50, 'M': 0.64, 'F': 1.19, 'P': 0.12, 'S': -0.18, 'T': -0.05, 'W': 0.81, 'Y': 0.26, 'V': 1.08}
     @classmethod
