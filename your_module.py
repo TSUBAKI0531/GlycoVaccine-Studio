@@ -19,14 +19,17 @@ class GlycoConjugateWorkflow:
         return {"glycan_sasa": glycan_sasa}
 
     def create_full_complex_json(self, job_name, antigen_prot, glycan_smiles, linker_smiles, bond_res_idx, h_seq, l_seq):
-        """AlphaFold 3 Server (Web UI) 仕様に完全に準拠したJSON生成"""
-        # 配列の余計な空白を削除し、大文字に統一
+        """AF3 Server 完全準拠版 JSON生成 (Linker空入力対応)"""
         antigen_prot = antigen_prot.strip().upper()
         h_seq = h_seq.strip().upper()
         l_seq = l_seq.strip().upper()
         
         # リンカーと糖鎖を統合（AF3では"."で繋ぐか一つのSMILESとして記述）
-        combined_ligand = f"{linker_smiles}.{glycan_smiles}" if linker_smiles else glycan_smiles
+        # 修正：リンカーがある場合のみドットで連結する
+        if linker_smiles and glycan_smiles:
+            combined_ligand = f"{linker_smiles}.{glycan_smiles}"
+        else:
+            combined_ligand = (linker_smiles + glycan_smiles).strip()
         
         # サーバー仕様：camelCaseのキー名とリスト形式が必須
         job_data = {
