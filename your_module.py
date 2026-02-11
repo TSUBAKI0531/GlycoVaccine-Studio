@@ -14,24 +14,50 @@ class GlycoConjugateWorkflow:
         struct = parser.get_structure("model", cif_path)[0]
         sr = ShrakeRupley()
         sr.compute(struct, level="R")
+        # 抗原(A鎖)以外の糖鎖部分のSASAを合計
         glycan_sasa = sum(getattr(res, 'sasa', 0.0) for chain in struct if chain.id != 'A' for res in chain)
         return {"glycan_sasa": glycan_sasa}
 
     def create_full_complex_json(self, job_name, antigen_prot, glycan_smiles, linker_smiles, bond_res_idx, h_seq, l_seq):
-        """抗原+リンカー+糖鎖+抗体のフルコンプレックスJSONを生成（AF3 Server 完全準拠版）"""
-        # リンカーと糖鎖を統合（複数の場合はドットで繋ぐか、結合させた一つのSMILESにする）
+        """AlphaFold 3 Server 完全準拠版 JSON生成"""
+        # 配列の余計な空白を削除し、大文字に統一
+        antigen_prot = antigen_prot.strip().upper()
+        h_seq = h_seq.strip().upper()
+        l_seq = l_seq.strip().upper()
+        
+        # リンカーと糖鎖を統合
         combined_ligand = f"{linker_smiles}.{glycan_smiles}" if linker_smiles else glycan_smiles
         
-        # サーバー仕様：camelCaseのキー名が必須
+        # サーバー仕様：camelCaseのキー名とリスト形式が必須
         job_data = {
             "name": job_name,
             "modelContents": [
-                {"protein": {"sequence": antigen_prot, "count": 1}}, # Entity 1
-                {"ligand": {"smiles": combined_ligand, "count": 1}}, # Entity 2
-                {"protein": {"sequence": h_seq, "count": 1}},        # Entity 3
-                {"protein": {"sequence": l_seq, "count": 1}}         # Entity 4
+                {
+                    "protein": {
+                        "sequence": antigen_prot,
+                        "label": "Antigen"
+                    }
+                },
+                {
+                    "ligand": {
+                        "smiles": combined_ligand,
+                        "label": "Glycan_Linker"
+                    }
+                },
+                {
+                    "protein": {
+                        "sequence": h_seq,
+                        "label": "Antibody_H"
+                    }
+                },
+                {
+                    "protein": {
+                        "sequence": l_seq,
+                        "label": "Antibody_L"
+                    }
+                }
             ],
-            "userBonds": [ # userBonds, resId1 等のキャメルケースが必須
+            "userBonds": [
                 {
                     "resId1": int(bond_res_idx),
                     "entityId1": 1,
@@ -40,7 +66,7 @@ class GlycoConjugateWorkflow:
                 }
             ]
         }
-        return [job_data] # リスト形式で返す
+        return [job_data]
 
 class CDRScorer:
     HYDRO_SCALE = {'A': 0.62, 'R': -2.53, 'N': -0.78, 'D': -0.90, 'C': 0.29, 'Q': -0.85, 'E': -0.74, 'G': 0.48, 'H': -0.40, 'I': 1.38, 'L': 1.06, 'K': -1.50, 'M': 0.64, 'F': 1.19, 'P': 0.12, 'S': -0.18, 'T': -0.05, 'W': 0.81, 'Y': 0.26, 'V': 1.08}
