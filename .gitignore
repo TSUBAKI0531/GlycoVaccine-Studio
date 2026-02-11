@@ -1,7 +1,8 @@
-venv/
+.venv/
 __pycache__/
 .streamlit/
 *.json
+*.pyc
 .DS_Store
 
 # 基本は無視
