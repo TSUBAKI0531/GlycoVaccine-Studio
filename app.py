@@ -1,17 +1,14 @@
 import streamlit as st
 import pandas as pd
 import json
-from your_module import GlycoConjugateWorkflow, ComplexBuilder, AntibodyGraftingEngine, CDRPredictor, HotSpotAnalyzer
+from your_module import GlycoConjugateWorkflow, ComplexBuilder, AntibodyGraftingEngine, CDRPredictor
 
 st.set_page_config(page_title="GlycoVaccine Studio v2.0", layout="wide", page_icon="🧪")
 st.title("🧪 GlycoVaccine Studio v2.0")
 
 # --- Session State ---
-if 'ant_seq' not in st.session_state: st.session_state.ant_seq = ""
-if 'l_smi' not in st.session_state: st.session_state.l_smi = ""
-if 'g_smi' not in st.session_state: st.session_state.g_smi = ""
-if 'h_seq' not in st.session_state: st.session_state.h_seq = ""
-if 'l_seq' not in st.session_state: st.session_state.l_seq = ""
+for key in ['ant_seq', 'l_smi', 'g_smi', 'h_seq', 'l_seq']:
+    if key not in st.session_state: st.session_state[key] = ""
 
 with st.sidebar:
     st.header("⚙️ Settings")
@@ -26,14 +23,14 @@ with tab1:
     col1, col2 = st.columns(2)
     with col1: l_smi = st.text_input("Linker SMILES", value=st.session_state.l_smi)
     with col2: g_smi = st.text_input("Glycan SMILES", value=st.session_state.g_smi)
-    if st.button("Build Complex"):
+    if st.button("Build & Output Complex"):
         st.session_state.ant_seq, st.session_state.l_smi, st.session_state.g_smi = prot, l_smi, g_smi
         builder = ComplexBuilder()
         pdb_data = builder.build_antigen_pdb(prot, l_smi, g_smi)
         st.download_button("Download PDB", pdb_data, "antigen_complex.pdb")
 
 with tab2:
-    st.header("🎨 Antibody Engineering (Trastuzumab Grafting)")
+    st.header("🎨 Antibody Engineering")
     if st.button("Graft CDRs onto Trastuzumab"):
         pred = CDRPredictor()
         h_cdrs, l_cdrs = pred.predict(st.session_state.g_smi)
@@ -49,7 +46,8 @@ with tab3:
         col3, col4 = st.columns(2)
         with col3:
             if st.button("Generate AF3 JSON"):
-                wf = GlycoConjugateWorkflow(job_name)
+                wf = GlycoConjugateWorkflow()
+                # 修正：引数を 7 個 + mode として渡す
                 full_json = wf.create_full_complex_json(
                     job_name, st.session_state.ant_seq, st.session_state.g_smi, 
                     st.session_state.l_smi, 50, st.session_state.h_seq, st.session_state.l_seq, 
@@ -57,18 +55,14 @@ with tab3:
                 )
                 st.download_button("Download JSON", json.dumps(full_json, indent=2), f"{job_name}_full.json")
         with col4:
-            if st.button("Generate PDB for CueMol2"):
-                                builder = ComplexBuilder()
-            merged = builder.merge_for_cuemol(st.session_state.ant_seq, st.session_state.h_seq, st.session_state.l_seq)
-            st.download_button("Download Merged PDB", merged, "complex_for_cuemol.pdb")
+            if st.button("Generate Merged PDB for CueMol2"):
+                # 修正：NameError 回避のためここでインスタンスを生成
+                builder = ComplexBuilder()
+                merged = builder.merge_for_cuemol(
+                    st.session_state.ant_seq, 
+                    st.session_state.h_seq, 
+                    st.session_state.l_seq
+                )
+                st.download_button("Download Merged PDB", merged, "complex_for_cuemol.pdb")
     else:
         st.warning("先に Tab 1 と 2 でデータを作成してください。")
-
-with tab4:
-    st.header("🔥 Hot Spot Analysis")
-    uploaded = st.file_uploader("Upload Antibody Model")
-    if uploaded:
-        ana = HotSpotAnalyzer()
-        df = ana.analyze(uploaded.name)
-        st.table(df)
-        st.bar_chart(df.set_index("Residue"))

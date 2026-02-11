@@ -1,10 +1,11 @@
+import json
 import pandas as pd
 import numpy as np
 
 class ComplexBuilder:
     """Tab 1, 3: CueMol2 がリボン表示できる PDB 形式の作製"""
     
-    def _generate_backbone_coords(self, sequence, chain_id, offset_z=0.0):
+    def _generate_backbone_atoms(self, sequence, chain_id, offset_z=0.0):
         """CueMol2 の SplineRenderer 用に N, CA, C 原子を生成"""
         lines = []
         atom_count = 1
@@ -26,37 +27,32 @@ class ComplexBuilder:
 
     def build_antigen_pdb(self, prot_seq, linker_smi, glycan_smi):
         """抗原複合体の PDB 生成"""
-        header = f"REMARK   Built by GlycoVaccine Studio\nREMARK   Linker: {linker_smi}\nREMARK   Glycan: {glycan_smi}"
-        coords = self._generate_backbone_coords(prot_seq, "A")
+        header = f"REMARK   Built by GlycoVaccine Studio\nREMARK   SMILES: {linker_smi}.{glycan_smi}"
+        coords = self._generate_backbone_atoms(prot_seq, "A")
         return header + "\n" + "\n".join(coords) + "\nTER\nEND"
 
     def merge_for_cuemol(self, ant_seq, h_seq, l_seq):
         """CueMol2 用の統合 PDB (抗原+抗体重鎖+軽鎖)"""
         lines = ["REMARK   Merged Complex for CueMol2 Visualization"]
-        # 各鎖が重ならないように X 軸方向にずらして配置
-        lines.extend(self._generate_backbone_coords(ant_seq, "A"))
+        lines.extend(self._generate_backbone_atoms(ant_seq, "A"))
         lines.append("TER")
-        lines.extend(self._generate_backbone_coords(h_seq, "H"))
+        lines.extend(self._generate_backbone_atoms(h_seq, "H", offset_z=100.0))
         lines.append("TER")
-        lines.extend(self._generate_backbone_coords(l_seq, "L"))
+        lines.extend(self._generate_backbone_atoms(l_seq, "L", offset_z=200.0))
         lines.append("TER")
         lines.append("END")
         return "\n".join(lines)
 
 class GlycoConjugateWorkflow:
-    def __init__(self, job_name):
-        self.job_name = job_name
-
     def create_full_complex_json(self, job_name, antigen_prot, glycan_smiles, linker_smiles, bond_res_idx, h_seq, l_seq, mode="Web"):
-        """AlphaFold Server 完全準拠版 JSON (TypeError 回避)"""
-        # 末尾の空白を完全に除去
+        """AlphaFold Server 完全準拠版 JSON (空白除去ロジック搭載)"""
+        # 末尾の空白を確実に削除
         antigen_prot = antigen_prot.strip().upper()
         h_seq = h_seq.strip().upper()
         l_seq = l_seq.strip().upper()
         combined_ligand = (linker_smiles.strip() + "." + glycan_smiles.strip()).strip(".")
 
         if "Web" in mode:
-            # AlphaFold Server (Web) 版スキーマ
             job_data = {
                 "name": job_name,
                 "modelSeeds": [1],
@@ -69,7 +65,6 @@ class GlycoConjugateWorkflow:
             }
             return [job_data]
         else:
-            # Standalone 版スキーマ
             job_data = {
                 "name": job_name,
                 "modelContents": [
@@ -82,21 +77,13 @@ class GlycoConjugateWorkflow:
             return job_data
 
 class AntibodyGraftingEngine:
-    """Tab 2: トラスツズマブ FR への CDR 移植"""
     def __init__(self):
         self.H_FR = {"F1":"EVQLVESGGGLVQPGGSLRLSCAAS", "F2":"WVRQAPGKGLEWVA", "F3":"RFTISADTSKNTAYLQMNSLRAEDTAVYYC", "F4":"WGQGTLVTVSS"}
         self.L_FR = {"F1":"DIQMTQSPSSLSASVGDRVTITC", "F2":"WYQQKPGKAPKLLIY", "F3":"GVPSRFSGSGSGTDFTLTISSLQPEDFATYYC", "F4":"FGQGTKVEIK"}
-
     def graft(self, h_cdrs, l_cdrs):
         h = f"{self.H_FR['F1']}{h_cdrs[0]}{self.H_FR['F2']}{h_cdrs[1]}{self.H_FR['F3']}{h_cdrs[2]}{self.H_FR['F4']}"
         l = f"{self.L_FR['F1']}{l_cdrs[0]}{self.L_FR['F2']}{l_cdrs[1]}{self.L_FR['F3']}{l_cdrs[2]}{self.L_FR['F4']}"
         return h, l
 
 class CDRPredictor:
-    def predict(self, smiles):
-        # デモ用 CDR 予測
-        return ["GFTFSRYT", "ISSSGGST", "ARTVRYGMDV"], ["QSVSSY", "DAS", "QQRSSWPFT"]
-
-class HotSpotAnalyzer:
-    def analyze(self, filename):
-        return pd.DataFrame({"Residue": ["H_Y33", "H_W102", "L_S91"], "Importance": [0.94, 0.88, 0.75]})
+    def predict(self, smiles): return ["GFTFSRYT", "ISSSGGST", "ARTVRYGMDV"], ["QSVSSY", "DAS", "QQRSSWPFT"]
