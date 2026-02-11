@@ -23,10 +23,8 @@ with tab1:
     st.header("🧬 Antigen Design with Linker")
     prot_seq = st.text_area("Antigen Protein Sequence (Carrier)", height=150)
     col1, col2 = st.columns(2)
-    with col1:
-        linker_smiles = st.text_input("Linker SMILES")
-    with col2:
-        glycan_smiles = st.text_input("Glycan SMILES")
+    with col1: linker_smiles = st.text_input("Linker SMILES")
+    with col2: glycan_smiles = st.text_input("Glycan SMILES")
     bond_idx = st.number_input("Bonding Residue Index", value=50)
     
     if st.button("Save Antigen Info"):
@@ -35,6 +33,8 @@ with tab1:
         st.session_state.last_smiles = glycan_smiles
         st.session_state.last_bond_idx = bond_idx
         st.success("抗原情報を保存しました。")
+
+# Tab 2-4 の解析コードは変更なし
 
 with tab5:
     st.header("🎨 Antibody Candidate Ranking")

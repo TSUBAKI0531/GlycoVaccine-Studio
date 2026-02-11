@@ -14,68 +14,58 @@ class GlycoConjugateWorkflow:
         struct = parser.get_structure("model", cif_path)[0]
         sr = ShrakeRupley()
         sr.compute(struct, level="R")
+        # 抗原(A鎖)以外の糖鎖部分のSASAを合計
         glycan_sasa = sum(getattr(res, 'sasa', 0.0) for chain in struct if chain.id != 'A' for res in chain)
         return {"glycan_sasa": glycan_sasa}
 
     def create_full_complex_json(self, job_name, antigen_prot, glycan_smiles, linker_smiles, bond_res_idx, h_seq, l_seq):
-        """AlphaFold 3 Server 仕様に完全に準拠したJSON生成"""
-        # 配列の余計な空白を削除し、大文字に統一
+        """AlphaFold Server (ウェブ版) の仕様に準拠したJSONを生成"""
+        # 配列のクリーニング
         antigen_prot = antigen_prot.strip().upper()
         h_seq = h_seq.strip().upper()
         l_seq = l_seq.strip().upper()
         
-        # リンカーと糖鎖を統合（空白を完全に除去）
+        # リンカーと糖鎖の統合
         g_smi = glycan_smiles.strip()
         l_smi = linker_smiles.strip()
-        
-        # リンカーと糖鎖の両方がある場合のみドットで連結
         if l_smi and g_smi:
             combined_ligand = f"{l_smi}.{g_smi}"
         else:
             combined_ligand = g_smi if g_smi else l_smi
-        
-        # camelCase のキー名と count: 1 を明示的に指定
+
+        # ウェブサーバー版専用のスキーマ (sequences / proteinChain)
         job_data = {
             "name": job_name,
-            "modelContents": [
+            "modelSeeds": [], 
+            "sequences": [
                 {
-                    "protein": {
+                    "proteinChain": {
                         "sequence": antigen_prot,
-                        "count": 1,
-                        "label": "Antigen_Carrier"
+                        "count": 1
                     }
                 },
                 {
                     "ligand": {
                         "smiles": combined_ligand,
-                        "count": 1,
-                        "label": "Glycan_Linker"
+                        "count": 1
                     }
                 },
                 {
-                    "protein": {
+                    "proteinChain": {
                         "sequence": h_seq,
-                        "count": 1,
-                        "label": "Antibody_H"
+                        "count": 1
                     }
                 },
                 {
-                    "protein": {
+                    "proteinChain": {
                         "sequence": l_seq,
-                        "count": 1,
-                        "label": "Antibody_L"
+                        "count": 1
                     }
-                }
-            ],
-            "userBonds": [
-                {
-                    "resId1": int(bond_res_idx),
-                    "entityId1": 1,
-                    "resId2": 1, 
-                    "entityId2": 2
                 }
             ]
         }
+        # ウェブ版ではSMILESリガンドへのuserBonds指定は原則サポート外のため、
+        # 受理を優先してここでは含めません。
         return [job_data]
 
 class CDRScorer:
